@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>歌リスト</title>
+<style>
+  :root {
+    --bg: #fbf8fc;
+    --surface: #ffffff;
+    --text: #2a2430;
+    --muted: #7a7082;
+    --line: #ece4f0;
+    --accent: #b0479a;
+    --accent-soft: #f6e4f1;
+    --chip: #f1ecf4;
+    --shadow: 0 1px 2px rgba(60, 20, 70, .06), 0 4px 16px rgba(60, 20, 70, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17141a;
+      --surface: #211d25;
+      --text: #efe9f2;
+      --muted: #a69cae;
+      --line: #342d3a;
+      --accent: #e48ad0;
+      --accent-soft: #3a2537;
+      --chip: #2c2631;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+
+  header { padding: 36px 0 20px; }
+  h1 { margin: 0; font-size: clamp(1.6rem, 5vw, 2.2rem); letter-spacing: .02em; }
+  .sub { margin: 6px 0 0; color: var(--muted); font-size: .92rem; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px 14px; font-size: .85rem; color: var(--muted);
+  }
+  .stat b { color: var(--text); font-size: 1.15rem; margin-right: 2px; font-variant-numeric: tabular-nums; }
+
+  .controls {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    padding: 12px 0 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .search { position: relative; }
+  .search input {
+    width: 100%; font: inherit; font-size: 1rem;
+    padding: 12px 40px 12px 42px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--surface); color: var(--text);
+    outline: none;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .clear {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    border: 0; background: transparent; color: var(--muted); font-size: 1.2rem;
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: none;
+  }
+  .clear.show { display: block; }
+
+  .row2 { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; }
+  .chip {
+    font: inherit; font-size: .85rem; border: 1px solid transparent; cursor: pointer;
+    background: var(--chip); color: var(--text); padding: 5px 12px; border-radius: 999px;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .tools { display: flex; gap: 6px; }
+  select, .btn {
+    font: inherit; font-size: .85rem; color: var(--text);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 10px; cursor: pointer;
+  }
+  .btn:hover, select:hover { border-color: var(--accent); }
+
+  .result-info { color: var(--muted); font-size: .85rem; margin: 12px 2px 8px; }
+  ul.list { list-style: none; margin: 0 0 40px; padding: 0; }
+  li.song {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow);
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: start;
+  }
+  li.song.flash { outline: 2px solid var(--accent); }
+  .title { font-weight: 700; font-size: 1.02rem; word-break: break-word; }
+  .artist {
+    grid-column: 1; color: var(--muted); font-size: .88rem; background: none; border: 0; padding: 0;
+    font: inherit; font-size: .88rem; text-align: left; cursor: pointer; justify-self: start;
+  }
+  .artist:hover { color: var(--accent); text-decoration: underline; }
+  .rel { grid-column: 1; font-size: .78rem; color: var(--muted); margin-top: 4px; }
+  .rel span { display: inline-block; background: var(--chip); border-radius: 6px; padding: 1px 7px; margin: 2px 4px 0 0; }
+  .copy {
+    grid-column: 2; grid-row: 1 / span 3; align-self: center;
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 6px 10px; font: inherit; font-size: .78rem; cursor: pointer; white-space: nowrap;
+  }
+  .copy:hover { color: var(--accent); border-color: var(--accent); }
+  mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+  .empty, .notice { text-align: center; color: var(--muted); padding: 40px 16px; }
+  .notice .btn { margin-top: 12px; display: inline-block; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px;
+    font-size: .88rem; opacity: 0; transition: .2s; pointer-events: none; max-width: calc(100% - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  footer { color: var(--muted); font-size: .78rem; text-align: center; padding: 0 0 32px; }
+  footer p { margin: 0 0 10px; }
+  .about { text-align: left; max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; }
+  .about summary { cursor: pointer; text-align: center; color: var(--text); }
+  .about h2 { font-size: .85rem; color: var(--text); margin: 14px 0 4px; }
+  .about p { line-height: 1.7; }
+  .about a { color: var(--accent); }
+  @media (max-width: 520px) {
+    header { padding-top: 24px; }
+    .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { flex: 0 0 auto; }
+    .tools { width: 100%; }
+    .tools select { flex: 1; }
+    .copy { padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+<!--
+  ============================================================
+  ★ 設定はここだけ変えればOK ★
+  ============================================================
+-->
+<script>
+const CONFIG = {
+  // サイトのタイトル（例: "〇〇の歌リスト"）
+  title: "歌リスト",
+  // タイトルの下に出す説明文
+  description: "これまでに歌った曲の一覧です。リクエストの参考にどうぞ！",
+  // 読み込むExcelファイル名（index.html と同じ場所に置く）
+  excelFile: "songs.xlsx",
+  // 読み込むシート名（見つからなければ最初のシートを使う）
+  sheetName: "全楽曲",
+  // 「このサイトについて」に出す運営者名と連絡先（空欄なら表示しません）
+  owner: "",
+  contact: "",   // 例: "X（旧Twitter）@xxxx のDMまで"
+  // ジャンルボタン：「関連作品」にキーワードが含まれていればそのジャンル
+  genres: [
+    { label: "アニソン", keywords: ["アニソン"] },
+    { label: "ボカロ",   keywords: ["ボカロ", "ボーカロイド"] },
+    { label: "ドラマ",   keywords: ["ドラマ"] },
+    { label: "ジブリ",   keywords: ["ジブリ"] },
+  ],
+};
+</script>
+
+<header class="wrap">
+  <h1 id="siteTitle"></h1>
+  <p class="sub" id="siteDesc"></p>
+  <div class="stats">
+    <div class="stat"><b id="statSongs">-</b>曲</div>
+    <div class="stat"><b id="statArtists">-</b>アーティスト</div>
+    <div class="stat" id="statUpdated" hidden></div>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="wrap">
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="text" enterkeyhint="search" placeholder="曲名・アーティスト・作品名で検索" autocomplete="off" aria-label="検索">
+      <button class="clear" id="clear" aria-label="検索をクリア">×</button>
+    </div>
+    <div class="row2">
+      <div class="chips" id="chips"></div>
+      <div class="tools">
+        <select id="sort" aria-label="並び替え">
+          <option value="default">Excelの順番</option>
+          <option value="title-asc">曲名 A→Z・あ→ん</option>
+          <option value="title-desc">曲名 Z→A・ん→あ</option>
+          <option value="artist-asc">アーティスト 昇順</option>
+          <option value="artist-desc">アーティスト 降順</option>
+        </select>
+        <button class="btn" id="random" title="表示中の曲からランダムに1曲">🎲 おまかせ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="result-info" id="info"></div>
+  <ul class="list" id="list"></ul>
+  <div id="status" class="notice">読み込み中…</div>
+  <input type="file" id="filePick" accept=".xlsx" hidden>
+</main>
+<footer class="wrap">
+  <p id="foot"></p>
+  <details class="about">
+    <summary>このサイトについて</summary>
+    <div>
+      <h2>個人情報・プライバシー</h2>
+      <p>このサイトは、閲覧者の名前・メールアドレスなどの個人情報を集めていません。Cookie、アクセス解析、広告も使っていません。検索した言葉はお使いのブラウザの中だけで処理され、どこにも送信されません。</p>
+      <p>このサイトは GitHub Pages で公開しています。サイトを表示するとき、GitHub がアクセス記録（IPアドレスなど）を保存することがあります。詳しくは <a href="https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener noreferrer">GitHub のプライバシーステートメント</a> をご覧ください。</p>
+      <h2>著作権</h2>
+      <p>掲載している曲名・アーティスト名・作品名は、曲名を案内するためだけに記載しています。各楽曲・作品の権利は、それぞれの権利者に帰属します。このサイトに歌詞や音源は載せていません。</p>
+      <p>このサイトは、掲載しているアーティスト・作品・権利者の公式サイトではなく、それらとは関係ありません。</p>
+      <h2>ご利用にあたって</h2>
+      <p>掲載内容は正確になるよう努めていますが、誤りがある場合があります。このサイトを利用したことで生じた損害について、運営者は責任を負いません。内容は予告なく変更・終了することがあります。</p>
+      <p id="aboutOwner" hidden></p>
+    </div>
+  </details>
+</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Excel(.xlsx) 読み込み — 外部ライブラリなし
+   .xlsx の中身は ZIP + XML なので、ブラウザ標準の
+   DecompressionStream と DOMParser で読み取ります。
+   ============================================================ */
+async function unzip(buf) {
+  const dv = new DataView(buf);
+  const u8 = new Uint8Array(buf);
+  let eocd = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("Excelファイルとして読めませんでした");
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  const files = {};
+  for (let n = 0; n < count; n++) {
+    const method = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true);
+    const elen = dv.getUint16(p + 30, true);
+    const clen = dv.getUint16(p + 32, true);
+    const local = dv.getUint32(p + 42, true);
+    const name = dec.decode(u8.subarray(p + 46, p + 46 + nlen));
+    files[name] = { method, csize, local };
+    p += 46 + nlen + elen + clen;
+  }
+  return async (name) => {
+    const f = files[name];
+    if (!f) return null;
+    const start = f.local + 30 + dv.getUint16(f.local + 26, true) + dv.getUint16(f.local + 28, true);
+    const data = u8.subarray(start, start + f.csize);
+    if (f.method === 0) return dec.decode(data);
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return await new Response(stream).text();
+  };
+}
+
+const xml = (s) => new DOMParser().parseFromString(s, "application/xml");
+const byTag = (node, tag) => Array.from(node.getElementsByTagNameNS("*", tag));
+
+async function readXlsx(buf, wantedSheet) {
+  const read = await unzip(buf);
+  // 共有文字列
+  const shared = [];
+  const ss = await read("xl/sharedStrings.xml");
+  if (ss) for (const si of byTag(xml(ss), "si")) shared.push(byTag(si, "t").map(t => t.textContent).join(""));
+  // シート名 → ファイルパス
+  const wb = xml(await read("xl/workbook.xml"));
+  const rels = xml(await read("xl/_rels/workbook.xml.rels"));
+  const relMap = {};
+  for (const r of byTag(rels, "Relationship")) relMap[r.getAttribute("Id")] = r.getAttribute("Target");
+  const sheets = byTag(wb, "sheet").map(s => ({
+    name: s.getAttribute("name").trim(),
+    rid: s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id") || s.getAttribute("r:id"),
+  }));
+  const sheet = sheets.find(s => s.name === wantedSheet.trim()) || sheets[0];
+  let target = relMap[sheet.rid].replace(/^\//, "");
+  if (!target.startsWith("xl/")) target = "xl/" + target;
+  const doc = xml(await read(target));
+  // セル → 2次元配列
+  const rows = [];
+  for (const row of byTag(doc, "row")) {
+    const r = parseInt(row.getAttribute("r"), 10) - 1;
+    const cells = rows[r] = [];
+    for (const c of byTag(row, "c")) {
+      const ref = c.getAttribute("r").replace(/\d+/g, "");
+      let col = 0;
+      for (const ch of ref) col = col * 26 + (ch.charCodeAt(0) - 64);
+      const t = c.getAttribute("t");
+      const v = byTag(c, "v")[0];
+      let val = "";
+      if (t === "s") val = shared[+v?.textContent] ?? "";
+      else if (t === "inlineStr") val = byTag(c, "t").map(x => x.textContent).join("");
+      else if (t === "b") val = v?.textContent === "1" ? "TRUE" : "FALSE";
+      else val = v ? v.textContent : "";
+      cells[col - 1] = String(val).trim();
+    }
+  }
+  return rows;
+}
+
+/* ============================================================
+   データ整形
+   ============================================================ */
+function toSongs(rows) {
+  const head = (rows[0] || []).map(h => (h || "").replace(/\s/g, ""));
+  const idx = (names, fallback) => {
+    const i = head.findIndex(h => names.some(n => h.includes(n)));
+    return i >= 0 ? i : fallback;
+  };
+  const cTitle = idx(["曲名"], 0), cArtist = idx(["アーティスト", "歌手"], 1), cRel = idx(["関連", "作品"], 2);
+  let updated = "";
+  const songs = [];
+  rows.forEach((row, i) => {
+    if (!row) return;
+    for (const v of row) if (v && /更新/.test(v) && /\d/.test(v)) updated = updated || v;
+    if (i === 0 || !row[cTitle]) return;
+    songs.push({ order: songs.length, title: row[cTitle], artist: row[cArtist] || "", rel: row[cRel] || "" });
+  });
+  for (const s of songs) {
+    s.key = norm(s.title + " " + s.artist + " " + s.rel);
+    s.genres = CONFIG.genres.filter(g => g.keywords.some(k => s.rel.includes(k))).map(g => g.label);
+  }
+  return { songs, updated };
+}
+
+// 検索用の正規化：全角半角・大文字小文字・カタカナひらがな・空白の違いを吸収
+function norm(s) {
+  return s.normalize("NFKC").toLowerCase()
+    .replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+    .replace(/[\s・･\-‐ー〜~!！?？。、,.'"’”「」『』()（）\[\]]/g, "");
+}
+
+/* ============================================================
+   画面
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const state = { songs: [], genre: "すべて", q: "", sort: "default" };
+const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+$("siteTitle").textContent = CONFIG.title;
+$("siteDesc").textContent = CONFIG.description;
+if (CONFIG.owner || CONFIG.contact) {
+  $("aboutOwner").hidden = false;
+  $("aboutOwner").textContent = [CONFIG.owner && `運営者：${CONFIG.owner}`, CONFIG.contact && `お問い合わせ：${CONFIG.contact}`].filter(Boolean).join("　/　");
+}
+document.title = CONFIG.title;
+
+function buildChips() {
+  const labels = ["すべて", ...CONFIG.genres.map(g => g.label), "その他"];
+  $("chips").innerHTML = "";
+  for (const label of labels) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.type = "button";
+    const n = label === "すべて" ? state.songs.length
+      : label === "その他" ? state.songs.filter(s => !s.genres.length).length
+      : state.songs.filter(s => s.genres.includes(label)).length;
+    b.textContent = `${label} ${n}`;
+    b.setAttribute("aria-pressed", String(label === state.genre));
+    b.onclick = () => { state.genre = label; buildChips(); render(); };
+    $("chips").appendChild(b);
+  }
+}
+
+function filtered() {
+  const terms = state.q.split(/[\s　]+/).map(norm).filter(Boolean);
+  let list = state.songs.filter(s => {
+    if (state.genre === "その他" && s.genres.length) return false;
+    if (state.genre !== "すべて" && state.genre !== "その他" && !s.genres.includes(state.genre)) return false;
+    return terms.every(t => s.key.includes(t));
+  });
+  const [field, dir] = state.sort.split("-");
+  if (field !== "default") {
+    const other = field === "title" ? "artist" : "title";
+    list = [...list].sort((a, b) => (collator.compare(a[field], b[field]) || collator.compare(a[other], b[other])) * (dir === "desc" ? -1 : 1));
+  }
+  return list;
+}
+
+const esc = (s) => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function highlight(text) {
+  const words = state.q.split(/[\s　]+/).filter(Boolean).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!words.length) return esc(text);
+  const re = new RegExp(`(${words.join("|")})`, "gi");
+  return text.split(re).map((part, i) => i % 2 ? `<mark>${esc(part)}</mark>` : esc(part)).join("");
+}
+
+function render() {
+  const list = filtered();
+  const ul = $("list");
+  ul.innerHTML = list.map(s => `
+    <li class="song" data-i="${s.order}">
+      <div class="title">${highlight(s.title)}</div>
+      <button class="artist" type="button" data-artist="${esc(s.artist)}">${highlight(s.artist)}</button>
+      ${s.rel ? `<div class="rel"><span>${highlight(s.rel)}</span></div>` : ""}
+      <button class="copy" type="button" data-copy="${s.order}">コピー</button>
+    </li>`).join("");
+  $("info").textContent = list.length === state.songs.length ? `全 ${list.length} 曲` : `${list.length} 曲が見つかりました（全 ${state.songs.length} 曲）`;
+  $("status").hidden = list.length > 0;
+  if (!list.length) {
+    const st = $("status");
+    st.className = "empty";
+    if (state.genre !== "すべて") {
+      st.innerHTML = `「${esc(state.genre)}」の中には見つかりませんでした<br><button class="btn" type="button" id="allBtn">すべての曲から探す</button>`;
+      $("allBtn").onclick = () => { state.genre = "すべて"; buildChips(); render(); };
+    } else st.textContent = "該当する曲が見つかりませんでした";
+  }
+}
+
+$("list").addEventListener("click", (e) => {
+  const a = e.target.closest(".artist");
+  if (a) { $("q").value = a.dataset.artist; onSearch(); window.scrollTo({ top: $("list").offsetTop - 140, behavior: "smooth" }); return; }
+  const c = e.target.closest(".copy");
+  if (c) {
+    const s = state.songs[+c.dataset.copy];
+    const text = `${s.title} / ${s.artist}`;
+    (navigator.clipboard?.writeText(text) || Promise.reject()).then(
+      () => toast(`コピーしました：${text}`),
+      () => toast(text)
+    );
+  }
+});
+
+function onSearch() {
+  state.q = $("q").value.trim();
+  $("clear").classList.toggle("show", !!state.q);
+  render();
+}
+$("q").addEventListener("input", onSearch);
+$("clear").onclick = () => { $("q").value = ""; onSearch(); $("q").focus(); };
+$("sort").onchange = (e) => { state.sort = e.target.value; render(); };
+$("random").onclick = () => {
+  const list = filtered();
+  if (!list.length) return;
+  const s = list[Math.floor(Math.random() * list.length)];
+  const li = document.querySelector(`li.song[data-i="${s.order}"]`);
+  li.scrollIntoView({ behavior: "smooth", block: "center" });
+  li.classList.add("flash");
+  setTimeout(() => li.classList.remove("flash"), 1600);
+  toast(`🎲 ${s.title} / ${s.artist}`);
+};
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+function load(buf) {
+  return readXlsx(buf, CONFIG.sheetName).then(rows => {
+    const { songs, updated } = toSongs(rows);
+    state.songs = songs;
+    $("statSongs").textContent = songs.length;
+    $("statArtists").textContent = new Set(songs.map(s => s.artist)).size;
+    if (updated) { $("statUpdated").hidden = false; $("statUpdated").textContent = updated; }
+    $("foot").textContent = updated ? `データ：${CONFIG.excelFile}（${updated}）` : `データ：${CONFIG.excelFile}`;
+    buildChips();
+    render();
+  });
+}
+
+// パソコンで index.html を直接開いた場合は fetch できないので、ファイル選択で読み込む
+function showPicker(reason) {
+  const st = $("status");
+  st.hidden = false;
+  st.className = "notice";
+  st.innerHTML = `${esc(reason)}<br><button class="btn" type="button" id="pickBtn">Excelファイルを選んで表示</button>`;
+  $("pickBtn").onclick = () => $("filePick").click();
+}
+$("filePick").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try { await load(await f.arrayBuffer()); }
+  catch (err) { showPicker("読み込めませんでした：" + err.message); }
+};
+
+fetch(CONFIG.excelFile, { cache: "no-cache" })
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+  .then(load)
+  .catch(() => showPicker("Excelファイルを自動で読み込めませんでした（パソコンで直接開いたときはこうなります。公開後のサイトでは自動で読み込まれます）。"));
+</script>
+</body>
+</html>
